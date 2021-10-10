@@ -208,9 +208,6 @@ void main(int argc, char** argv)
         //If no transactions left, break out of loop
         if (access.address == 0)
             break;
-	printf("%d %x\n",access.accesstype, access.address);
-	/* Do a cache access */
-
 
     /* First we find a string representation of our address in binary */
     char binary_string_representation[33];
@@ -291,7 +288,6 @@ void main(int argc, char** argv)
        for (int i = 0; i < number_of_sets; i++) {
            cache_entry = chosen_cache[i]; 
            if (cache_entry.tag == cache_tag) { // HIT
-           printf("HIT!\n");
                 cache_statistics.hits++; 
                 found_entry = 1; 
                 break;
@@ -299,7 +295,6 @@ void main(int argc, char** argv)
        }
 
        if (!found_entry) { // MISS
-       printf("Looking for valid bit\n");
             for (int i = 0; i < number_of_sets; i++) {
                 cache_entry = chosen_cache[i]; 
                 if (cache_entry.valid == 0) {
@@ -313,7 +308,6 @@ void main(int argc, char** argv)
             }
        }
        if (!found_entry) { // If we still haven't found an entry then FIFO
-       printf("Running the FIFO\n");
             cache_entry = chosen_cache[queue_counter];
             cache_entry.tag = cache_tag; 
             chosen_cache[queue_counter] = cache_entry;
@@ -323,6 +317,24 @@ void main(int argc, char** argv)
     }
 
     /* Print the statistics */
+
+    char* cache_map;
+    if (cache_mapping == dm) {
+        cache_map = "direct mapped"; 
+    }
+    else {
+        cache_map  = "fully associative";
+    }
+
+    printf("\nCache Organization \n");
+    printf("Size:                  %d bytes\n", cache_size);
+    printf("Mapping:               %s \n", cache_map);
+    printf("Number of index bits:  %d bits\n", number_of_index_bits);
+    printf("Number of tag bits:    %d bits\n", number_of_tag_bits);
+    printf("Number of offset bits: %d bits\n", number_of_offset_bits);
+    printf("Block size:            %d bytes\n", block_size);
+
+
     // DO NOT CHANGE THE FOLLOWING LINES!
     printf("\nCache Statistics\n");
     printf("-----------------\n\n");
