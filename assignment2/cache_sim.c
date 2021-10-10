@@ -90,14 +90,19 @@ char binary_to_hex[16][5] = {"0000", "0001", "0010", "0011",
 
 /* Function for generating binary string representation from decimal number */
 void decimal_to_binary_string(uint32_t decimal, char* binary)   {
-    int i = 0, j = 0;
+    int i = 0, j = 0, length = 0;
     // We find all the digits
+
     while (decimal > 0) {
         int remainder = decimal % 2;
         char binary_character = remainder + '0';
         binary[i++] = binary_character;
         decimal /= 2; 
     }
+    while (i < 32) {
+        binary[i++] = '0';
+    }
+
     binary[i--] = '\0';
     
     // Now we swap the digits' position 
@@ -212,6 +217,8 @@ void main(int argc, char** argv)
     /* First we find a string representation of our address in binary */
     char binary_string_representation[33];
     decimal_to_binary_string(access.address, binary_string_representation); 
+    
+    // printf("Binary representation: %s \n", binary_string_representation);
 
 
     /* Now we need to get the index bits */
@@ -222,6 +229,7 @@ void main(int argc, char** argv)
         index_bits[i] = binary_string_representation[number_of_tag_bits + i]; 
     }
     index_bits[number_of_index_bits] = '\0';
+    // printf("Index bits: %s \n", index_bits);
     cache_index = strtol(index_bits, NULL, 2); 
     }
 
@@ -249,6 +257,7 @@ void main(int argc, char** argv)
 
     /* Direct Mapping */
     if (cache_mapping == dm) {
+        // printf("the cache index for this access is: %u\n", cache_index); 
         cache_entry = chosen_cache[cache_index]; 
   
         cache_statistics.accesses++; 
