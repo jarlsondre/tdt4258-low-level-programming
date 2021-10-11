@@ -204,6 +204,10 @@ void main(int argc, char** argv)
         printf("Unable to open the trace file\n");
         exit(1);
     }
+    printf("number of sets %d\n", number_of_sets);
+    int size_of_cache = sizeof data_cache / sizeof data_cache[0];
+    printf("The size of the cache: %lu, the size of one cache_element: %lu\n", sizeof data_cache, sizeof data_cache[0]); 
+    printf("The size of the cache is %d\n", size_of_cache); 
 
     
     /* Loop until whole trace file has been read */
@@ -248,7 +252,7 @@ void main(int argc, char** argv)
     if (cache_org == uc) {
         chosen_cache = direct_mapped_cache;
     }
-    else if (access.accesstype) {
+    else if (access.accesstype == data) {
         chosen_cache = data_cache;
     }
     else { 
@@ -306,6 +310,7 @@ void main(int argc, char** argv)
        if (!found_entry) { // MISS
             for (int i = 0; i < number_of_sets; i++) {
                 cache_entry = chosen_cache[i]; 
+                // Looking for a valid bit that is zero
                 if (cache_entry.valid == 0) {
                     cache_entry.valid = 1; 
                     cache_entry.tag = cache_tag;
@@ -326,7 +331,6 @@ void main(int argc, char** argv)
     }
 
     /* Print the statistics */
-
     char* cache_map;
     char* cache_organization;
     if (cache_mapping == dm) {
