@@ -22,6 +22,7 @@ typedef struct {
     // remove the accesses or hits
 } cache_stat_t;
 
+// Single entry of a cache
 typedef struct {
     int valid; 
     int tag;
@@ -31,12 +32,20 @@ typedef struct {
 // DECLARE CACHES AND COUNTERS FOR THE STATS HERE
 
 
+// Variables to use later
 uint32_t cache_size; 
 uint32_t block_size = 64;
 uint32_t address_size = 32; 
-uint32_t queue_counter = 0; 
+
+// Counters for the different queues
+uint32_t unified_queue_counter = 0; 
+uint32_t data_queue_counter = 0; 
+uint32_t instruction_queue_counter = 0; 
+
 cache_map_t cache_mapping;
 cache_org_t cache_org;
+
+// Caches for the different mappings
 cache_entry_t* direct_mapped_cache;
 cache_entry_t* instruction_cache;
 cache_entry_t* data_cache;
@@ -82,27 +91,21 @@ mem_access_t read_transaction(FILE *ptr_file) {
     return access;
 }
 
-/* Map from hex to binary */
-char binary_to_hex[16][5] = {"0000", "0001", "0010", "0011",
-                             "0100", "0101", "0110", "0111",
-                             "1000", "1001", "1010", "1011",
-                             "1100", "1101", "1110", "1111"};
-
 /* Function for generating binary string representation from decimal number */
 void decimal_to_binary_string(uint32_t decimal, char* binary)   {
     int i = 0, j = 0, length = 0;
-    // We find all the digits
 
+    // We find all the digits
     while (decimal > 0) {
         int remainder = decimal % 2;
         char binary_character = remainder + '0';
         binary[i++] = binary_character;
         decimal /= 2; 
     }
+    // We add zeroes to the end of the string
     while (i < 32) {
         binary[i++] = '0';
     }
-
     binary[i--] = '\0';
     
     // Now we swap the digits' position 
@@ -156,33 +159,33 @@ void main(int argc, char** argv)
         }
     }
 
-    int number_of_sets = cache_size / block_size;
+    int number_of_blocks = cache_size / block_size;
     if (cache_org == uc) {
         /* Creating a cache */ 
-        direct_mapped_cache = malloc(sizeof(cache_entry_t) * number_of_sets); 
+        direct_mapped_cache = malloc(sizeof(cache_entry_t) * number_of_blocks); 
         
         /* Setting up the cache with valid bits set to 0 */ 
-        for (int i = 0; i < number_of_sets; i++) {
+        for (int i = 0; i < number_of_blocks; i++) {
             cache_entry_t entry = {0, 0}; 
             direct_mapped_cache[i] = entry; 
         }
     }
     else {
         /* Creating two caches */
-        number_of_sets /= 2; 
-        instruction_cache = malloc(sizeof(cache_entry_t) * number_of_sets); 
-        data_cache = malloc(sizeof(cache_entry_t) * number_of_sets); 
+        number_of_blocks /= 2; 
+        instruction_cache = malloc(sizeof(cache_entry_t) * number_of_blocks); 
+        data_cache = malloc(sizeof(cache_entry_t) * number_of_blocks); 
 
         /* Setting up the caches with valid bits set to 0 */
-        for (int i = 0; i < number_of_sets; i++) {
+        for (int i = 0; i < number_of_blocks; i++) {
             cache_entry_t entry1 = {0, 0}; 
             cache_entry_t entry2 = {0, 0}; 
             instruction_cache[i] = entry1; 
             data_cache[i] = entry2; 
         }
     }
-    int* queue = malloc(sizeof(int) * number_of_sets);
-    memset(queue, 0, sizeof(int) * number_of_sets); 
+    int* queue = malloc(sizeof(int) * number_of_blocks);
+    memset(queue, 0, sizeof(int) * number_of_blocks); 
 
     // Finding the number of bits for the cache
     int number_of_index_bits = 0;
@@ -190,7 +193,7 @@ void main(int argc, char** argv)
     int number_of_tag_bits; 
 
     if (cache_mapping == dm) {
-        number_of_index_bits = log2(number_of_sets); 
+        number_of_index_bits = log2(number_of_blocks); 
         number_of_tag_bits = address_size - number_of_index_bits - number_of_offset_bits;
     }
     else {
@@ -204,10 +207,6 @@ void main(int argc, char** argv)
         printf("Unable to open the trace file\n");
         exit(1);
     }
-    printf("number of sets %d\n", number_of_sets);
-    int size_of_cache = sizeof data_cache / sizeof data_cache[0];
-    printf("The size of the cache: %lu, the size of one cache_element: %lu\n", sizeof data_cache, sizeof data_cache[0]); 
-    printf("The size of the cache is %d\n", size_of_cache); 
 
     
     /* Loop until whole trace file has been read */
@@ -215,119 +214,112 @@ void main(int argc, char** argv)
     while(1) {
         access = read_transaction(ptr_file);
         //If no transactions left, break out of loop
-        if (access.address == 0)
-            break;
+        if (access.address == 0) break;
 
-    /* First we find a string representation of our address in binary */
-    char binary_string_representation[33];
-    decimal_to_binary_string(access.address, binary_string_representation); 
-    
-    // printf("Binary representation: %s \n", binary_string_representation);
+        /* First we find a string representation of our address in binary */
+        char binary_string_representation[33];
+        decimal_to_binary_string(access.address, binary_string_representation); 
+        
+        // printf("Binary representation: %s \n", binary_string_representation);
 
 
-    /* Now we need to get the index bits */
-    uint32_t cache_index;
-    if (number_of_index_bits) {
-    char* index_bits = malloc(sizeof(char) * (number_of_index_bits + 1));
-    for (int i = 0; i < number_of_index_bits; i++) {
-        index_bits[i] = binary_string_representation[number_of_tag_bits + i]; 
-    }
-    index_bits[number_of_index_bits] = '\0';
-    // printf("Index bits: %s \n", index_bits);
-    cache_index = strtol(index_bits, NULL, 2); 
-    }
-
-    /* Then we get the tag bits */
-    char* tag_bits = malloc(sizeof(char) * (number_of_tag_bits + 1)); 
-    for (int i = 0; i < number_of_tag_bits; i++) {
-        tag_bits[i] = binary_string_representation[i]; 
-    }
-    tag_bits[number_of_tag_bits] = '\0';
-    uint32_t cache_tag = strtol(tag_bits, NULL, 2); 
-
-    cache_entry_t cache_entry; 
-    cache_entry_t *chosen_cache = NULL; 
-
-    /* Finding which cache to use */ 
-    if (cache_org == uc) {
-        chosen_cache = direct_mapped_cache;
-    }
-    else if (access.accesstype == data) {
-        chosen_cache = data_cache;
-    }
-    else { 
-        chosen_cache = instruction_cache; 
-    }
-
-    /* Direct Mapping */
-    if (cache_mapping == dm) {
-        // printf("the cache index for this access is: %u\n", cache_index); 
-        cache_entry = chosen_cache[cache_index]; 
-  
-        cache_statistics.accesses++; 
-
-        /* If the entry is not valid we have a miss and need 
-            to replace the cache entry */
-        if (!cache_entry.valid) {
-            cache_entry.valid = 1;
-            cache_entry.tag = cache_tag; // TODO:      
-        }
-        /* If we have a hit */
-        else if (cache_entry.valid && cache_entry.tag == cache_tag) {
-            cache_statistics.hits++; 
-        }
-        /* If it's valid, but we have a miss */
-        else {
-            cache_entry.tag = cache_tag; 
+        /* Now we need to get the index bits */
+        uint32_t cache_index;
+        if (number_of_index_bits) {
+            char* index_bits = malloc(sizeof(char) * (number_of_index_bits + 1));
+            for (int i = 0; i < number_of_index_bits; i++) {
+                index_bits[i] = binary_string_representation[number_of_tag_bits + i]; 
+            }
+            index_bits[number_of_index_bits] = '\0';
+            // printf("Index bits: %s \n", index_bits);
+            cache_index = strtol(index_bits, NULL, 2); 
         }
 
-        /* Updating the cache */
-        chosen_cache[cache_index] = cache_entry; 
-    }
+        /* Then we get the tag bits */
+        char* tag_bits = malloc(sizeof(char) * (number_of_tag_bits + 1)); 
+        for (int i = 0; i < number_of_tag_bits; i++) {
+            tag_bits[i] = binary_string_representation[i]; 
+        }
+        tag_bits[number_of_tag_bits] = '\0';
+        uint32_t cache_tag = strtol(tag_bits, NULL, 2); 
 
-   /* Fully Associative */
-   else {
-    
-    /* We need to find the correct cache_entry.
-       This can be done by looping through the cache 
-       until you find an entry with the same tag. If 
-       you don't find this then you have to look for 
-       a valid bit that is zero. If you don't find this 
-       then you have to replace using FIFO */
+        cache_entry_t cache_entry; 
+        cache_entry_t *chosen_cache = NULL; 
 
-       int found_entry = 0; 
-       cache_statistics.accesses++; 
+        /* Finding which cache to use */ 
+        if (cache_org == uc) {
+            chosen_cache = direct_mapped_cache;
+        }
+        else if (access.accesstype == data) {
+            chosen_cache = data_cache;
+        }
+        else { 
+            chosen_cache = instruction_cache; 
+        }
 
-       for (int i = 0; i < number_of_sets; i++) {
-           cache_entry = chosen_cache[i]; 
-           if (cache_entry.tag == cache_tag) { // HIT
+        /* Direct Mapping */
+        if (cache_mapping == dm) {
+            cache_entry = chosen_cache[cache_index]; 
+            cache_statistics.accesses++; 
+
+            /* If the entry is not valid we have a miss and need 
+                to replace the cache entry */
+            if (!cache_entry.valid) {
+                cache_entry.valid = 1;
+                cache_entry.tag = cache_tag; // TODO:      
+            }
+            /* If we have a hit */
+            else if (cache_entry.valid && cache_entry.tag == cache_tag) {
                 cache_statistics.hits++; 
-                found_entry = 1; 
-                break;
-           }
-       }
+            }
+            /* If it's valid, but we have a miss */
+            else {
+                cache_entry.tag = cache_tag; 
+            }
+            /* Updating the cache */
+            chosen_cache[cache_index] = cache_entry; 
+        }
 
-       if (!found_entry) { // MISS
-            for (int i = 0; i < number_of_sets; i++) {
+        /* Fully Associative */
+        else {
+            
+            /* We need to find the correct cache_entry */
+            int found_entry = 0; 
+            cache_statistics.accesses++; 
+
+            /* Checking if the entry is in the cache */
+            for (int i = 0; i < number_of_blocks; i++) {
                 cache_entry = chosen_cache[i]; 
-                // Looking for a valid bit that is zero
-                if (cache_entry.valid == 0) {
-                    cache_entry.valid = 1; 
-                    cache_entry.tag = cache_tag;
-                    found_entry = 1;
-                    chosen_cache[i] = cache_entry; 
-                    queue[queue_counter++] = i;
-                    break;
+                if (cache_entry.tag == cache_tag && cache_entry.valid == 1) { // HIT
+                        cache_statistics.hits++; 
+                        found_entry = 1; 
+                        break;
                 }
             }
-       }
-       if (!found_entry) { // If we still haven't found an entry then FIFO
-            cache_entry = chosen_cache[queue_counter];
-            cache_entry.tag = cache_tag; 
-            chosen_cache[queue_counter] = cache_entry;
-            queue_counter = (queue_counter + 1) % number_of_sets;
-       }
-    }
+
+            if (!found_entry) { // Since the entry wasn't in the cache we have to use FIFO
+
+                // First we have to find out which queue to use
+                int* chosen_counter;
+                if (cache_org == uc) {
+                    chosen_counter = &unified_queue_counter;
+                }
+                else if (access.accesstype == data) {
+                    chosen_counter = &data_queue_counter;
+                }
+                else {
+                    chosen_counter = &instruction_queue_counter;
+                }
+                
+                /* We know all the valid bits are zero at the start, so we can 
+                just go through the queue since it starts at index zero  */
+                cache_entry = chosen_cache[*chosen_counter];
+                cache_entry.tag = cache_tag; 
+                cache_entry.valid = 1; 
+                chosen_cache[*chosen_counter] = cache_entry;
+                *chosen_counter = (*chosen_counter + 1) % number_of_blocks;
+            }
+        }
     }
 
     /* Print the statistics */
