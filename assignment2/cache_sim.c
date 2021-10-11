@@ -248,7 +248,7 @@ void main(int argc, char** argv)
     if (cache_org == uc) {
         chosen_cache = direct_mapped_cache;
     }
-    else if (access.address) {
+    else if (access.accesstype) {
         chosen_cache = data_cache;
     }
     else { 
@@ -328,16 +328,24 @@ void main(int argc, char** argv)
     /* Print the statistics */
 
     char* cache_map;
+    char* cache_organization;
     if (cache_mapping == dm) {
         cache_map = "direct mapped"; 
     }
     else {
         cache_map  = "fully associative";
     }
+    if (cache_org == uc) {
+        cache_organization = "unified cache"; 
+    }
+    else {
+        cache_organization = "split cache"; 
+    }
 
     printf("\nCache Organization \n");
     printf("Size:                  %d bytes\n", cache_size);
     printf("Mapping:               %s \n", cache_map);
+    printf("Organization:          %s \n", cache_organization);
     printf("Number of index bits:  %d bits\n", number_of_index_bits);
     printf("Number of tag bits:    %d bits\n", number_of_tag_bits);
     printf("Number of offset bits: %d bits\n", number_of_offset_bits);
